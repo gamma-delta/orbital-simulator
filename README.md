@@ -23,7 +23,7 @@ Controls:
 * Square brackets: Speed up and slow down the simulation
 * Tilde: Reset zoom, body scale, and speed to default
 * Left & Right: Target an orbiter and have the camera follow it.
-* * Space: Pan back to (0, 0) if you're not targeting an orbiter, or stop targeting if you are.
+* Space: Pan back to (0, 0) if you're not targeting an orbiter, or stop targeting if you are.
 * Enter: Start loading backups of the simulation
 * While in backup mode:
   * Semicolon & Quote: Pick which backup to load
