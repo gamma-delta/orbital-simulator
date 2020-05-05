@@ -1,0 +1,85 @@
+[
+    {
+        body: "sol",
+        kinemat: {
+            pos: [0, 0],
+            vel: [0, 0],
+        },
+        children: [
+            {
+                body: "mercury",
+                kinemat: {
+                    pos: [57909050000, 0],
+                    vel: [0, -47362]
+                }
+            },
+            {
+                body: "venus",
+                kinemat: {
+                    pos: [-108208000000, 0],
+                    vel: [0, 35020] // Venus is the only planet that rotates clockwise.
+                }
+            },
+            {
+                body: "earth",
+                kinemat: {
+                    pos: [149598023000.0, 0.0],
+                    vel: [0.0, -29780.0]
+                },
+                children: [
+                    {
+                        body: "luna",
+                        kinemat: {
+                            pos: [0.0, 384399000.0],
+                            vel: [1022.0, 0.0]
+                        }
+                    },
+                ]
+            },
+            {
+                body: "mars",
+                kinemat: {
+                    pos: [227939000000.0, 0.0],
+                    vel: [0.0, -24007.0]
+                },
+                children: [
+                    {
+                        body: "phobos",
+                        kinemat: {
+                            pos: [0, -9376000],
+                            vel: [-2138, 0]
+                        }
+                    },
+                    {
+                        body: "deimos",
+                        kinemat: {
+                            pos: [0, 23460000],
+                            vel: [1350, 0]
+                        }
+                    }
+                ]
+            },
+            {
+                body: "jupiter",
+                kinemat: {
+                    pos: [778600000000, 0],
+                    vel: [0, -13070]
+                }
+            },
+            {
+                body: "neptune",
+                kinemat: {
+                    pos: [0, 4500000000000],
+                    vel: [5430, 0]
+                }
+            },
+            {
+                body: "halleys_comet",
+                kinemat: {
+                    pos: [87661080000, 0],
+                    vel: [0, 54571]
+                }
+            }
+        ]
+    }
+]

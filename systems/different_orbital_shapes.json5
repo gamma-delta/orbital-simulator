@@ -1,0 +1,50 @@
+[
+    { // The actual position of Mars
+        body: "sol",
+        kinemat: {
+            pos: [0, 0],
+            vel: [0, 0],
+        },
+        children: [
+            {
+                body: "mars",
+                kinemat: {
+                    pos: [227939000000.0, 0.0],
+                    vel: [0.0, -24007.0]
+                }
+            }
+        ]
+    },
+    { // Mars but half as fast
+        body: "sol",
+        kinemat: {
+            pos: [1000000000000000, 0],
+            vel: [0, 0],
+        },
+        children: [
+            {
+                body: "mars",
+                kinemat: {
+                    pos: [227939000000.0, 0.0],
+                    vel: [0.0, -12003.5]
+                }
+            }
+        ]
+    },
+    { // Mars but twice as fast
+        body: "sol",
+        kinemat: {
+            pos: [-1000000000000000, 0],
+            vel: [0, 0],
+        },
+        children: [
+            {
+                body: "mars",
+                kinemat: {
+                    pos: [227939000000.0, 0.0],
+                    vel: [0.0, -48014.0]
+                }
+            }
+        ]
+    }
+]
