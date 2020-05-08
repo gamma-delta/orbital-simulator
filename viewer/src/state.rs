@@ -2,7 +2,7 @@
 
 use simulator::{SimulationMode, SolarSystem};
 
-use euclid::default::Point2D;
+use euclid::default::{Point2D, Vector2D};
 use ggez::event::{EventHandler, KeyCode};
 use ggez::nalgebra::Point2;
 use ggez::{
@@ -29,16 +29,14 @@ pub struct State {
     planet_scale: f64,
     /// Whether to fake the scale of planets by squishing them, for less existential dread
     fake_planet_scale: bool,
-    /// What I'm focusing on
-    focus: Focus,
-}
-
-/// What my focus is on
-enum Focus {
-    /// Contains the ID of the body I'm focusing on
-    Body(usize),
-    /// I'm focusing on a point in space
-    Position(Point2D<f64>),
+    /// If I'm focusing on a body
+    focused_body: Option<usize>,
+    /// The offset of that focus
+    focus_offset: Point2D<f64>,
+    /// If a pop-up appears on a planet, what's its id?
+    popuped_orbiter_id: Option<usize>,
+    /// Whether to even draw a popup
+    draw_popup: bool,
 }
 
 impl State {
@@ -50,7 +48,10 @@ impl State {
             distance_scale: DEFAULT_SCALE,
             planet_scale: DEFAULT_PLANET_SCALE,
             fake_planet_scale: true,
-            focus: Focus::Position(Point2D::zero()),
+            focused_body: None,
+            focus_offset: Point2D::zero(),
+            popuped_orbiter_id: None,
+            draw_popup: true,
         };
         s
     }
@@ -69,10 +70,9 @@ impl EventHandler for State {
             // Calculate how much of the simulation should be dt and how much should be steps per frame
             // At small time scales, do a lot of small steps.
             // At big time scales, do a few giant steps.
-            let steps_per_second = 100.0 * (self.sim_seconds_per_frame + 100.0).recip();
+            let steps_per_second = 10.0 * (self.sim_seconds_per_frame + 1_000.0).recip();
             let steps_per_frame = self.sim_seconds_per_frame * steps_per_second;
             let seconds_per_step = self.sim_seconds_per_frame / steps_per_frame;
-
             // Weird experiment...
             let seconds_per_step = if keyboard::is_key_pressed(ctx, KeyCode::Tab) {
                 -seconds_per_step
@@ -80,8 +80,11 @@ impl EventHandler for State {
                 seconds_per_step
             };
 
-            for _ in 0..steps_per_frame.ceil() as usize {
-                self.solar_system.update(seconds_per_step);
+            if let SimulationMode::Simulating = self.solar_system.get_mode() {
+                let frames = steps_per_frame.ceil() as u32;
+                for _ in 0..frames {
+                    self.solar_system.update(seconds_per_step);
+                }
             }
             let orbiters = self.solar_system.get_orbiters();
 
@@ -113,6 +116,13 @@ impl EventHandler for State {
                     self.fake_planet_scale = !self.fake_planet_scale;
                 }
 
+                // Toggle showing the popup with /
+                if keyboard::is_key_pressed(ctx, KeyCode::Slash)
+                    && !self.prev_keys.contains(&KeyCode::Slash)
+                {
+                    self.draw_popup = !self.draw_popup;
+                }
+
                 // BACKUPS & SPEED
                 // Speed and slow the simulation with []
                 if keyboard::is_key_pressed(ctx, KeyCode::LBracket)
@@ -137,11 +147,11 @@ impl EventHandler for State {
                         // Change thing to load with ; and '
                         if keyboard::is_key_pressed(ctx, KeyCode::Semicolon) {
                             // Negative = older
-                            self.solar_system.change_load(-(steps_per_frame as isize));
+                            self.solar_system.change_load(-1);
                         }
                         if keyboard::is_key_pressed(ctx, KeyCode::Apostrophe) {
                             // Positive = newer
-                            self.solar_system.change_load(steps_per_frame as isize);
+                            self.solar_system.change_load(1);
                         }
 
                         // Use Return to toggle modes
@@ -154,96 +164,98 @@ impl EventHandler for State {
                 };
 
                 let pan_speed = PAN_SPEED * self.distance_scale;
-                match &mut self.focus {
-                    Focus::Position(pos) => {
-                        if keyboard::is_key_pressed(ctx, KeyCode::Space)
-                            && !self.prev_keys.contains(&KeyCode::Space)
+                if keyboard::is_key_pressed(ctx, KeyCode::Space)
+                    && !self.prev_keys.contains(&KeyCode::Space)
+                {
+                    if let Some(_) = self.focused_body {
+                        self.focused_body = None
+                    } else {
+                        self.focus_offset = Point2D::zero();
+                    }
+                } else {
+                    // Check for panning
+                    if keyboard::is_key_pressed(ctx, KeyCode::W) {
+                        self.focus_offset.y -= pan_speed;
+                    }
+                    if keyboard::is_key_pressed(ctx, KeyCode::S) {
+                        self.focus_offset.y += pan_speed;
+                    }
+                    if keyboard::is_key_pressed(ctx, KeyCode::A) {
+                        self.focus_offset.x -= pan_speed;
+                    }
+                    if keyboard::is_key_pressed(ctx, KeyCode::D) {
+                        self.focus_offset.x += pan_speed;
+                    }
+                }
+
+                // Left/right arrows
+                if let Some(id) = self.focused_body {
+                    // Press Space to exit focusing the planet
+                    if keyboard::is_key_pressed(ctx, KeyCode::Space) {
+                        self.focus_offset = orbiters.get(&id).unwrap().1.pos;
+                        self.focused_body = None;
+                    } else {
+                        // We're not trying to exit
+                        if keyboard::is_key_pressed(ctx, KeyCode::Right)
+                            && !self.prev_keys.contains(&KeyCode::Right)
                         {
-                            // Reset to the origin
-                            *pos = Point2D::zero();
-                        } else {
-                            // Check for panning if I'm not pressing a key
-                            if keyboard::is_key_pressed(ctx, KeyCode::W) {
-                                pos.y -= pan_speed;
-                            }
-                            if keyboard::is_key_pressed(ctx, KeyCode::S) {
-                                pos.y += pan_speed;
-                            }
-                            if keyboard::is_key_pressed(ctx, KeyCode::A) {
-                                pos.x -= pan_speed;
-                            }
-                            if keyboard::is_key_pressed(ctx, KeyCode::D) {
-                                pos.x += pan_speed;
+                            self.focus_offset = Point2D::zero();
+                            let maybe_tup = orbiters.range(id + 1..).next();
+                            if let Some(tup) = maybe_tup {
+                                self.focused_body = Some(*tup.0) // Move it there!
+                            } else {
+                                // Cycle back to the beginning
+                                let id_maybe = orbiters.keys().next();
+                                if let Some(first_valid_id) = id_maybe {
+                                    self.focused_body = Some(*first_valid_id);
+                                } else {
+                                    //there's no bodies somehow. Uh-oh...
+                                    self.focused_body = None
+                                }
                             }
                         }
-
-                        // Press left or right arrow to go to Body mode
                         if keyboard::is_key_pressed(ctx, KeyCode::Left)
-                            || keyboard::is_key_pressed(ctx, KeyCode::Right)
+                            && !self.prev_keys.contains(&KeyCode::Left)
                         {
-                            let id_maybe = orbiters.keys().next();
-                            if let Some(first_valid_id) = id_maybe {
-                                self.focus = Focus::Body(*first_valid_id)
-                            } // Else, there's no bodies somehow. Uh-oh...
+                            self.focus_offset = Point2D::zero();
+                            let maybe_tup = orbiters.range(..id).next_back();
+                            if let Some(tup) = maybe_tup {
+                                self.focused_body = Some(*tup.0) // Move it there!
+                            } else {
+                                // Cycle back to the end
+                                let id_maybe = orbiters.keys().last();
+                                if let Some(first_valid_id) = id_maybe {
+                                    self.focused_body = Some(*first_valid_id);
+                                } else {
+                                    //there's no bodies somehow. Uh-oh...
+                                    self.focused_body = None;
+                                }
+                            }
                         }
                     }
-                    Focus::Body(id) => {
-                        // Press Space or any WASD to exit focusing the planet
-                        if keyboard::is_key_pressed(ctx, KeyCode::Space)
-                            || keyboard::is_key_pressed(ctx, KeyCode::W)
-                            || keyboard::is_key_pressed(ctx, KeyCode::S)
-                            || keyboard::is_key_pressed(ctx, KeyCode::A)
-                            || keyboard::is_key_pressed(ctx, KeyCode::D)
-                        {
-                            self.focus = Focus::Position(orbiters.get(id).unwrap().1.pos);
+                } else {
+                    if keyboard::is_key_pressed(ctx, KeyCode::Left)
+                        || keyboard::is_key_pressed(ctx, KeyCode::Right)
+                    {
+                        let id_maybe = if let Some(id) = self.popuped_orbiter_id {
+                            Some(id)
+                        } else if let Some(id) = orbiters.keys().next() {
+                            Some(*id)
                         } else {
-                            // We're not trying to exit
-                            let mut oh_no_there_are_no_orbiters = false;
-                            if keyboard::is_key_pressed(ctx, KeyCode::Right)
-                                && !self.prev_keys.contains(&KeyCode::Right)
-                            {
-                                let maybe_tup = orbiters.range(*id + 1..).next();
-                                if let Some(tup) = maybe_tup {
-                                    *id = *tup.0 // Move it there!
-                                } else {
-                                    // Cycle back to the beginning
-                                    let id_maybe = orbiters.keys().next();
-                                    if let Some(first_valid_id) = id_maybe {
-                                        *id = *first_valid_id;
-                                    } else {
-                                        //there's no bodies somehow. Uh-oh...
-                                        oh_no_there_are_no_orbiters = true;
-                                    }
-                                }
-                            }
-                            if keyboard::is_key_pressed(ctx, KeyCode::Left)
-                                && !self.prev_keys.contains(&KeyCode::Left)
-                            {
-                                let maybe_tup = orbiters.range(..*id).next_back();
-                                if let Some(tup) = maybe_tup {
-                                    *id = *tup.0 // Move it there!
-                                } else {
-                                    // Cycle back to the end
-                                    let id_maybe = orbiters.keys().last();
-                                    if let Some(first_valid_id) = id_maybe {
-                                        *id = *first_valid_id;
-                                    } else {
-                                        //there's no bodies somehow. Uh-oh...
-                                        oh_no_there_are_no_orbiters = true;
-                                    }
-                                }
-                            }
-
-                            if oh_no_there_are_no_orbiters {
-                                self.focus = Focus::Position(Point2D::zero());
-                            }
+                            None
+                        };
+                        if let Some(first_valid_id) = id_maybe {
+                            self.focused_body = Some(first_valid_id);
+                        } else {
+                            // Else, there's no bodies somehow. Uh-oh...
+                            self.popuped_orbiter_id = None;
                         }
                     }
                 }
-            }
 
-            // Update previous keys
-            self.prev_keys = keyboard::pressed_keys(ctx).to_owned();
+                // Update previous keys
+                self.prev_keys = keyboard::pressed_keys(ctx).to_owned();
+            }
         }
         Ok(())
     }
@@ -252,22 +264,23 @@ impl EventHandler for State {
         graphics::clear(ctx, Color::from_rgb_u32(0x200b2b));
 
         let orbiters = self.solar_system.get_orbiters();
-        let focus_coord = match self.focus {
-            Focus::Body(id) => {
-                if let Some(focused_orbiter) = orbiters.get(&id) {
-                    focused_orbiter.1.pos
-                } else {
-                    // Oh no we're trying to focus on something that doesn't exist ;(
-                    self.focus = Focus::Position(Point2D::zero());
-                    Point2D::zero()
-                }
-            }
-            Focus::Position(pos) => pos,
-        };
+        let focus_coord = self.focus_offset
+            + match self.focused_body {
+                Some(id) => match orbiters.get(&id) {
+                    Some(o) => o.1.pos.to_vector(),
+                    None => Vector2D::zero(),
+                },
+                None => Vector2D::zero(),
+            };
 
         let (scr_w, scr_h) = graphics::drawable_size(ctx);
 
-        for (&_id, orbiter) in orbiters.iter() {
+        let mut body_meshes = MeshBuilder::new();
+        let mut text_box_meshes = MeshBuilder::new();
+
+        // id, (x, y), radius
+        let mut drawn_ids: Vec<(usize, (f32, f32), f32)> = Vec::new();
+        for (&id, orbiter) in orbiters.iter() {
             let relative_pos = orbiter.1.pos - focus_coord;
             // Make (0, 0) in pixel coords the center of the screen
             let draw_pos = Point2::new(
@@ -285,25 +298,134 @@ impl EventHandler for State {
                 && draw_pos.x - draw_radius <= scr_w
                 && draw_pos.y + draw_radius > 0.0
                 && draw_pos.y - draw_radius <= scr_h
+            // make sure we don't try to make a mesh with 0 vertices
             {
-                let draw = MeshBuilder::new()
+                drawn_ids.push((id, (draw_pos.x, draw_pos.y), draw_radius));
+                // i don't know how low is is supposed to be aaaa
+                let tolerance = (draw_radius * 2.0).recip();
+                body_meshes
                     .circle(
                         DrawMode::fill(),
                         draw_pos,
                         draw_radius,
-                        0.01, // i don't know how low is is supposed to be aaaa
+                        tolerance,
                         Color::from_rgb_u32(orbiter.0.color),
                     )
                     .circle(
                         DrawMode::stroke(draw_radius / 10.0),
                         draw_pos,
                         draw_radius,
-                        0.01,
+                        tolerance,
                         Color::from_rgb_u32(orbiter.0.outline),
-                    )
-                    .build(ctx)?;
+                    );
+            }
+        }
 
-                graphics::draw(ctx, &draw, DrawParam::default())?;
+        if drawn_ids.len() >= 1 {
+            let draw = body_meshes.build(ctx)?;
+            graphics::draw(ctx, &draw, DrawParam::default())?;
+
+            let popuped_orbiter_id = if let Some(id) = self.focused_body {
+                Some(id)
+            } else {
+                // Check to see if any of the things we've drawn are good for this
+                drawn_ids.iter().find_map(|(id, (x, y), radius)| {
+                    if ((radius * radius) / (scr_w * scr_h))
+                        * (
+                            // These two lines are 1 when its drawn in the center
+                            // of the screen and get closer to 0 the farther away its drawn
+                            (1.0 - (x - scr_w / 2.0).abs() / (scr_w / 2.0))
+                                * (1.0 - (y - scr_h / 2.0).abs() / (scr_h / 2.0))
+                        )
+                        / (drawn_ids.len() as f32 / orbiters.len() as f32) // The fewer things onscreen the easier it is to draw
+                        >= PROPORTION_REQUIRED_FOR_LABEL
+                    {
+                        Some(*id)
+                    } else {
+                        None
+                    }
+                })
+            };
+            self.popuped_orbiter_id = popuped_orbiter_id;
+            if self.draw_popup {
+                if let Some(popuped_orbiter_id) = popuped_orbiter_id {
+                    if let Some(popuped_orbiter) = orbiters.get(&popuped_orbiter_id) {
+                        use graphics::{Text, TextFragment};
+                        let message = format!("\nBody info:\n- Mass: {:.2e} kg\n- Radius: {:.2e} m\nKinematic info:\n- Position: ({:.2e}, {:.2e}) m\n- Velocity: ({:.2e}, {:.2e}) m/s",
+                            popuped_orbiter.0.mass, popuped_orbiter.0.radius,
+                            popuped_orbiter.1.pos.x, popuped_orbiter.1.pos.y, popuped_orbiter.1.vel.x, popuped_orbiter.1.vel.y);
+                        let body_text = Text::new(TextFragment::new(message));
+                        let (text_w, text_h) = body_text.dimensions(ctx);
+                        let (text_w, text_h) = (text_w as f32, text_h as f32);
+
+                        // Yes i already did this calculation, I know
+                        let relative_pos = popuped_orbiter.1.pos - focus_coord;
+                        let draw_pos = Point2::new(
+                            scr_w / 2f32 + (relative_pos.x / self.distance_scale) as f32,
+                            scr_h / 2f32 + (relative_pos.y / self.distance_scale) as f32,
+                        );
+                        let draw_radius = scale_planet(
+                            popuped_orbiter.0.radius,
+                            self.distance_scale * self.planet_scale,
+                            self.fake_planet_scale,
+                        );
+
+                        // Setup the title text
+                        let title_text =
+                            Text::new(TextFragment::new(popuped_orbiter.0.name.clone()));
+                        let title_width = title_text.width(ctx) as f32;
+
+                        let text_w = text_w.max(title_width);
+
+                        // Calculate where the corners of the text box should go.
+                        // First pretend we calculate based on the upper left corner
+                        let (corner_x, corner_y) = (
+                            if draw_pos.x + text_w * 1.5 < scr_w {
+                                draw_pos.x + draw_radius * 1.1 + text_w / 10.0
+                            } else {
+                                draw_pos.x - draw_radius * 1.1 - text_w - text_w / 10.0
+                            },
+                            if draw_pos.y + text_h * 1.5 < scr_h {
+                                draw_pos.y
+                            } else {
+                                draw_pos.y - text_h
+                            },
+                        );
+
+                        let textbox_rect = graphics::Rect::new(
+                            corner_x - text_w / 10.0,
+                            corner_y - text_h / 10.0,
+                            text_w + text_w / 10.0 * 2.0,
+                            text_h + text_h / 10.0 * 2.0,
+                        );
+
+                        // Add the textbox to the mesh of all textboxes
+                        text_box_meshes.rectangle(DrawMode::fill(), textbox_rect, graphics::BLACK);
+
+                        // Queue up the texts
+                        graphics::queue_text(
+                            ctx,
+                            &body_text,
+                            Point2::new(corner_x, corner_y),
+                            Some(graphics::WHITE),
+                        );
+                        let title_text_x = corner_x + (text_w - title_width) / 2.0; // centered
+                        graphics::queue_text(
+                            ctx,
+                            &title_text,
+                            Point2::new(title_text_x, corner_y),
+                            Some(graphics::WHITE),
+                        );
+                        let draw = text_box_meshes.build(ctx)?;
+                        graphics::draw(ctx, &draw, DrawParam::default())?;
+                        graphics::draw_queued_text(
+                            ctx,
+                            DrawParam::default(),
+                            None,
+                            graphics::default_filter(ctx),
+                        )?;
+                    }
+                }
             }
         }
 
@@ -327,6 +449,10 @@ fn scale_planet(radius: f64, scale: f64, fake: bool) -> f32 {
 const PAN_SPEED: f64 = 10f64; // Pan this many pixels per frame
 const ZOOM_SPEED: f64 = 1.1f64; // multiply / divide by this many meters per frame
 const SPEED_SPEED: f64 = 1.05f64; // speed speed... the number of seconds simulated per frame changes by this amount per frame
+/// How much of the screen a body has to take up to show its label.
+/// Multiplied by how close to the center of the screen the body is
+/// Lower == easier to draw the popup
+const PROPORTION_REQUIRED_FOR_LABEL: f32 = 0.000005;
 
 const DEFAULT_SCALE: f64 = 1e10;
 const DEFAULT_PLANET_SCALE: f64 = 1f64;

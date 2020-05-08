@@ -4,7 +4,7 @@ use euclid::default::{Point2D, Vector2D};
 
 /// The representation of a body, like a star, planet, comet...
 /// Doesn't store its position or velocity.
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct Body {
     pub mass: f64,
     pub radius: f64,
@@ -12,6 +12,10 @@ pub struct Body {
     pub color: u32,
     /// Color is stored as 0xRRGGBB
     pub outline: u32,
+    /// Its name
+    pub name: String,
+    /// If it doesn't move regardless of gravity
+    pub immovable: bool,
 }
 
 /// A Kinemat holds all the kinematic information about something.
@@ -34,6 +38,7 @@ impl Kinemat {
     }
 
     pub fn update(&mut self, dt: f64, acc: Vector2D<f64>) {
+        // It shouldn't try to be moved if the associated body is immovable.
         self.vel += acc * dt;
         self.pos += self.vel * dt;
     }
@@ -41,5 +46,5 @@ impl Kinemat {
 
 /// An Orbiter is a combination of a Body and a Kinemat.
 /// In other words, a thing and where it is (and how fast it's going.)
-#[derive(Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct Orbiter(pub Body, pub Kinemat);

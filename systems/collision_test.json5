@@ -1,0 +1,18 @@
+[
+    {
+        body: "sol",
+        kinemat: {
+            pos: [0, 0],
+            vel: [0, 0],
+        },
+        children: [
+            {
+                body: "mars",
+                kinemat: {
+                    pos: [227939000000.0, 0.0],
+                    vel: [2000.0, 0]
+                }
+            }
+        ]
+    },
+]

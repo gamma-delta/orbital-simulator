@@ -60,23 +60,44 @@
                 ]
             },
             {
+                // The asteroid belt
+                total_mass: 2.39e21,
+                min_orbit: 3.14e11,
+                max_orbit: 5.09e11,
+                max_bodies: 20,
+            },
+            {
                 body: "jupiter",
                 kinemat: {
-                    pos: [778600000000, 0],
+                    pos: [7.786e11, 0],
                     vel: [0, -13070]
+                }
+            },
+            {
+                body: "saturn",
+                kinemat: {
+                    pos: [-1.43353e12, 0],
+                    vel: [0, 9680]
+                }
+            },
+            {
+                body: "uranus",
+                kinemat: {
+                    pos: [2.874165879e12, 0],
+                    vel: [0, 6800]
                 }
             },
             {
                 body: "neptune",
                 kinemat: {
-                    pos: [0, 4500000000000],
+                    pos: [0, 4.5e12],
                     vel: [5430, 0]
                 }
             },
             {
                 body: "halleys_comet",
                 kinemat: {
-                    pos: [87661080000, 0],
+                    pos: [8.766108e10, 0],
                     vel: [0, 54571]
                 }
             }

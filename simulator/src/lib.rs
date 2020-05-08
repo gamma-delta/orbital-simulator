@@ -33,20 +33,19 @@ pub enum SimulationMode {
 
 impl SolarSystem {
     pub fn new(orbiters: Vec<Orbiter>) -> Self {
-        let mut bodies = Vec::with_capacity(orbiters.len());
-        let mut kinemats = HashMap::with_capacity(orbiters.len());
-        for (idx, Orbiter(body, kmat)) in orbiters.iter().enumerate() {
-            bodies.push(*body);
-            kinemats.insert(idx, *kmat);
-        }
-        SolarSystem {
+        let mut ss = SolarSystem {
             save_per: SAVE_EVERY,
-            bodies,
-            kinemats,
+            bodies: Vec::new(),
+            kinemats: HashMap::new(),
             saves: VecDeque::new(),
             frames_elapsed: 0,
             mode: SimulationMode::Simulating,
+        };
+        for oer in orbiters.into_iter() {
+            ss.add_orbiter(oer);
         }
+
+        ss
     }
 
     pub fn update(&mut self, dt: f64) {
@@ -63,73 +62,100 @@ impl SolarSystem {
                 let mut new_orbiters: Vec<(Orbiter, (usize, usize))> = Vec::new();
                 // IDs of things we need to skip for whatever reason, like it was combined with something else.
                 let mut skip_ids: HashSet<usize> = HashSet::new();
+
+                // Process both normal and smol kinemats
                 for (&id, kmat) in self.kinemats.iter() {
                     if skip_ids.contains(&id) {
                         continue;
                     }
                     let body = &self.bodies[id];
-                    let mut wip_force = Vector2D::<f64>::zero();
-                    for (&other_id, other_kmat) in self.kinemats.iter() {
-                        if other_id == id {
-                            continue;
-                        }
-                        // Now if Rust only let me do a nested for loop properly I wouldn't need this bullshit
-                        let other_body = self.bodies[other_id];
-                        let dx = other_kmat.pos.x - kmat.pos.x;
-                        let dy = other_kmat.pos.y - kmat.pos.y;
-                        let dist_squared = dx * dx + dy * dy;
-                        if dist_squared
-                            < (body.radius + other_body.radius) * (body.radius + other_body.radius)
-                        {
-                            // ooh, a collision!
-                            skip_ids.insert(other_id);
-                            new_orbiters.push((
-                                Orbiter(
+
+                    // Only check to pull other kinemats if it's not small
+                    let debug_why_isnt_gravity_working = true;
+                    if body.mass > MIN_PULL_MASS || debug_why_isnt_gravity_working {
+                        // Hey, this is chonky enough to pull other stuff.
+                        for (&other_id, other_kmat) in self.kinemats.iter() {
+                            if other_id == id {
+                                continue;
+                            }
+
+                            let dx = other_kmat.pos.x - kmat.pos.x;
+                            let dy = other_kmat.pos.y - kmat.pos.y;
+                            let dist_squared = dx * dx + dy * dy;
+                            if dist_squared > MAX_PULL_DISTANCE * MAX_PULL_DISTANCE {
+                                continue;
+                            }
+
+                            let other_body = &self.bodies[other_id];
+                            if other_body.immovable {
+                                continue;
+                            }
+                            if dist_squared
+                                < (body.radius + other_body.radius)
+                                    * (body.radius + other_body.radius)
+                            {
+                                // ooh, a collision!
+                                skip_ids.insert(other_id);
+                                let combined = Orbiter(
                                     Body {
                                         mass: body.mass + other_body.mass,
                                         // Combine the radii as if they were actually spheres instead of just adding them.
-                                        radius: ((3.0 / 4.0 * 3.14159f64)
-                                            * (body.mass + other_body.mass))
+                                        radius: (body.radius.powi(3) + other_body.radius.powi(3))
                                             .cbrt(),
-                                        color: (body.color
-                                                + other_body.color)
-                                                / 2,
-                                        outline:
-                                            (body.outline
-                                                + other_body.outline)
-                                                / 2,
-                                        
+                                        name: format!("{} & {}", body.name, other_body.name),
+                                        color: mix_colors(
+                                            body.color,
+                                            body.mass,
+                                            other_body.color,
+                                            other_body.mass,
+                                        ),
+                                        outline: mix_colors(
+                                            body.outline,
+                                            body.mass,
+                                            other_body.outline,
+                                            other_body.mass,
+                                        ),
+                                        immovable: body.immovable || other_body.immovable, // If either of them doesn't move, neither does this one
                                     },
                                     Kinemat::new(
-                                        // Position it fractionally beween this and that based on the mass proportion
                                         kmat.pos
-                                            + Vector2D::new(dx, dy) * (other_body.mass / body.mass),
+                                            + Vector2D::new(dx, dy) * (other_body.mass)
+                                                / (body.mass + other_body.mass),
                                         // Momentum (mass * vel) is conserved!
-                                        kmat.vel * body.mass + other_kmat.vel * other_body.mass,
+                                        (kmat.vel * body.mass + other_kmat.vel * other_body.mass)
+                                            / (body.mass + other_body.mass),
                                     ),
-                                ),
-                                (id, other_id),
-                            ))
-                        } else {
-                            let force =
-                                GRAV_CONSTANT * ((body.mass * other_body.mass) / dist_squared);
-                            let norm = Vector2D::new(dx, dy) / dist_squared.sqrt();
-                            let force = norm * force;
-                            wip_force += force;
+                                );
+                                new_orbiters.push((combined, (id, other_id)));
+                            } else {
+                                // Actually calculate the force
+                                // it's negative because we're calculating the other body
+                                let force = -1.0
+                                    * GRAV_CONSTANT
+                                    * ((body.mass * other_body.mass) / dist_squared);
+                                let norm = Vector2D::new(dx, dy) / dist_squared.sqrt();
+                                let force = norm * force;
+                                forces.insert(
+                                    other_id,
+                                    force + *forces.get(&other_id).unwrap_or(&Vector2D::zero()),
+                                );
+                            }
                         }
                     }
-                    forces.insert(id, wip_force);
                 }
 
-                for (&id, &force) in forces.iter() {
-                    let acc = force / self.bodies[id].mass;
-                    let kmat = self.kinemats.get_mut(&id).unwrap();
-                    kmat.update(dt, acc);
+                for (new_orbiter, (id1, id2)) in new_orbiters.drain(0..) {
+                    // Stop processing the old kinemats
+                    self.kinemats.remove(&id1);
+                    self.kinemats.remove(&id2);
+                    // Add a shiny new orbiter!
+                    self.add_orbiter(new_orbiter);
                 }
-                for (new_orbiter, (id1, id2)) in new_orbiters.iter() {
-                    self.kinemats.remove(id1);
-                    self.kinemats.remove(id2);
-                    self.add_orbiter(*new_orbiter);
+                for (&id, &force) in forces.iter() {
+                    if let Some(kmat) = self.kinemats.get_mut(&id) {
+                        let acc = force / self.bodies[id].mass;
+                        kmat.update(dt, acc);
+                    }
                 }
 
                 // dbg!(self.kinemats.get(&1).unwrap());
@@ -143,9 +169,12 @@ impl SolarSystem {
     }
 
     /// Add an orbiter to the SolarSystem.
-    pub fn add_orbiter(&mut self, oer: Orbiter) {
+    /// Returns the ID it was given
+    pub fn add_orbiter(&mut self, oer: Orbiter) -> usize {
+        let id = self.bodies.len();
         self.bodies.push(oer.0);
-        self.kinemats.insert(self.bodies.len() - 1, oer.1);
+        self.kinemats.insert(id, oer.1);
+        id
     }
 
     /// Get a BTreeMap associating each id with an Orbiter.
@@ -157,7 +186,7 @@ impl SolarSystem {
             SimulationMode::LoadingSave(number) => &self.saves[number],
         }
         .iter()
-        .map(|(&id, &kmat)| (id, Orbiter(self.bodies[id], kmat)))
+        .map(|(&id, &kmat)| (id, Orbiter(self.bodies[id].clone(), kmat)))
         .collect()
     }
 
@@ -227,6 +256,14 @@ impl SolarSystem {
                 match save_to_restore {
                     Some(restore) => {
                         self.kinemats = restore.to_owned();
+                        // Erase all the bodies that don't exist anymore
+                        let mut i = 0usize;
+                        let rust_is_dumb = &self.kinemats;
+                        self.bodies.retain(|_| {
+                            let success = rust_is_dumb.contains_key(&i);
+                            i += 1;
+                            success
+                        });
                         self.mode = SimulationMode::Simulating;
                         self.saves.truncate(number);
                     }
@@ -240,6 +277,21 @@ impl SolarSystem {
     }
 }
 
-const SAVE_EVERY: usize = 24; // Save once every simulation day.
-const SAVE_COUNT: usize = 10_000; // Save this many previous points.
+const SAVE_EVERY: usize = 1_000; // Save once every this many simulation steps
+const SAVE_COUNT: usize = 1_000; // Save this many previous points.
+const MIN_PULL_MASS: f64 = 1e23; // Any masses under this amount don't bother pulling on others (but do get pulled)
+const MAX_PULL_DISTANCE: f64 = 51e13; // Any masses farther than this amount away don't pull on each other. This is about 5x as far as Halley's comet is at the max.
+
 pub const GRAV_CONSTANT: f64 = 6.674e-11;
+
+// Interpolate two colors with a weighted average of the masses
+fn mix_colors(c1: u32, w1: f64, c2: u32, w2: f64) -> u32 {
+    [0x0000ff, 0x00ff00, 0xff0000]
+        .iter()
+        .fold(0, |wip_color, mask| {
+            let comp1 = c1 & mask;
+            let comp2 = c2 & mask;
+            let color = ((comp1 as f64 * w1 + comp2 as f64 * w2) / (w1 + w2)) as u32;
+            wip_color + (color & mask)
+        })
+}

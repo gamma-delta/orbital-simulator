@@ -31,9 +31,12 @@ pub fn main() {
     };
     let contents = std::fs::read_to_string(path_to_system).unwrap();
     let bodies = loader::load(contents).unwrap();
+    println!("Loaded system data from file...");
     let system = simulator::SolarSystem::new(bodies);
+    println!("Marshalled system data to solar system...");
 
     let state = &mut State::new(ctx, system);
+    println!("Start viewer!");
 
     event::run(ctx, event_loop, state).unwrap();
 }

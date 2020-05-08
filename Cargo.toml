@@ -5,3 +5,7 @@ members = [
 	"loader",
 	"viewer",
 ]
+
+# Build GGEZ in super-fast mode
+[profile.dev.package.ggez]
+opt-level = 3

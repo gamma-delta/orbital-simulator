@@ -5,13 +5,15 @@ pub mod bodies {
 
     // REAL BODIES
 
-    /// Returns our Sun.
+    /// Returns our Sun. Will not move.
     pub fn sol() -> Body {
         Body {
             mass: 1.9884e30,
             radius: 695_700_000f64,
+            name: "Sol".to_string(),
             color: 0xFFDF22,
             outline: 0xE87513,
+            immovable: true,
         }
     }
 
@@ -21,8 +23,10 @@ pub mod bodies {
         Body {
             mass: 3.3011e23,
             radius: 1_439_700f64,
+            name: "Mercury".to_string(),
             color: 0xa79ea1,   // light gray
             outline: 0x737375, // dark gray
+            immovable: false,
         }
     }
 
@@ -31,8 +35,10 @@ pub mod bodies {
         Body {
             mass: 4.8675e24,
             radius: 6_051_800f64,
-            color: 0xfcd172, // gray yellow
+            name: "Venus".to_string(),
+            color: 0xfcd172,   // gray yellow
             outline: 0xaf5a23, // brown
+            immovable: false,
         }
     }
 
@@ -41,8 +47,10 @@ pub mod bodies {
         Body {
             mass: 5.97237e24,
             radius: 6_371_000f64,
+            name: "Earth".to_string(),
             color: 0x3669FF,   // blue
             outline: 0x56FF2D, // green
+            immovable: false,
         }
     }
 
@@ -52,8 +60,10 @@ pub mod bodies {
         Body {
             mass: 7.342e22,
             radius: 1_737_400f64,
+            name: "Luna".to_string(),
             color: 0x3c3a38,   // dark gray,
             outline: 0xadaca9, // light gray,
+            immovable: false,
         }
     }
 
@@ -62,8 +72,10 @@ pub mod bodies {
         Body {
             mass: 6.4171e23,
             radius: 3_398_500f64,
+            name: "Mars".to_string(),
             color: 0xff5c26,   // red-orange
             outline: 0xc9af9e, // gray
+            immovable: false,
         }
     }
 
@@ -80,8 +92,34 @@ pub mod bodies {
         Body {
             mass: 1.8982e27,
             radius: 69_911_000f64,
-            color: 0x977569, // bruisey brown
+            name: "Jupiter".to_string(),
+            color: 0x977569,   // bruisey brown
             outline: 0x8b5b45, // brown red
+            immovable: false,
+        }
+    }
+
+    /// Returns Saturn.
+    pub fn saturn() -> Body {
+        Body {
+            mass: 5.6834e26,
+            radius: 58_232_000f64,
+            name: "Saturn".to_string(),
+            color: 0xf5b92f,   // yellow,
+            outline: 0x8c8109, // disturbingly close to urine
+            immovable: false,
+        }
+    }
+
+    /// Returns Uranus.
+    pub fn uranus() -> Body {
+        Body {
+            mass: 86810e25,
+            radius: 25_632_000f64,
+            name: "Uranus".to_string(),
+            color: 0x48faff,   // ice blue
+            outline: 0x62e4f9, // darker blue
+            immovable: false,
         }
     }
 
@@ -90,8 +128,10 @@ pub mod bodies {
         Body {
             mass: 1.024_13e26,
             radius: 24_622_000f64,
-            color: 0x6e8ab9,   // light blue
+            name: "Neptune".to_string(),
+            color: 0x6e8add,   // light blue
             outline: 0xc3ddff, // lighter blue
+            immovable: false,
         }
     }
 
@@ -99,8 +139,10 @@ pub mod bodies {
         Body {
             mass: 2.2e14,
             radius: 11_000f64,
-            color: 0xddddff, // slightly blue white
+            name: "Halley's Comet".to_string(),
+            color: 0xddddff,   // slightly blue white
             outline: 0x80b09b, //space purple
+            immovable: false,
         }
     }
 
@@ -112,8 +154,10 @@ pub mod bodies {
         Body {
             mass: 3.387e24,
             radius: 5_633_000f64,
+            name: "Roshar".to_string(),
             color: 0x015089,   // azure
             outline: 0xc1d8e6, // light blue
+            immovable: false,
         }
     }
 
@@ -124,8 +168,10 @@ pub mod bodies {
         Body {
             mass,
             radius,
-            color: 0xe8b374, // orangey brown
+            name: "Anonymous Moon".to_string(),
+            color: 0xe8b374,   // orangey brown
             outline: 0x71401d, // brown
+            immovable: false,
         }
     }
 }
@@ -133,9 +179,9 @@ pub mod bodies {
 pub mod solar_systems {
     use crate::builder::{SolarSystemBuilder, SolarSystemBuilderEntry as SSBE};
     use crate::prefabs::bodies;
+    use euclid::default::{Point2D, Vector2D};
     use simulator::bodies::*;
     use simulator::GRAV_CONSTANT;
-    use euclid::default::{Point2D, Vector2D};
 
     /// If you zoom in really really far you can see us!
     pub fn ours() -> Vec<Orbiter> {
@@ -208,6 +254,10 @@ pub mod solar_systems {
                         Point2D::new(7.786e11, 0f64),
                         Vector2D::new(0f64, -13_070f64),
                     ),
+                ))
+                .add(SSBE::new_parts(
+                    bodies::saturn(),
+                    Kinemat::new(Point2D::new(-1.43353e12, 0f64), Vector2D::new(0.0, 9_680.0)),
                 ))
                 // This is terrifying me. why am I doing this at night
                 .add(SSBE::new_parts(
