@@ -117,14 +117,19 @@ impl SolarSystem {
                                         ),
                                         immovable: body.immovable || other_body.immovable, // If either of them doesn't move, neither does this one
                                     },
-                                    Kinemat::new(
-                                        kmat.pos
-                                            + Vector2D::new(dx, dy) * (other_body.mass)
+                                    if !body.immovable && other_body.immovable {
+                                        Kinemat::new(
+                                            kmat.pos
+                                                + Vector2D::new(dx, dy) * (other_body.mass)
+                                                    / (body.mass + other_body.mass),
+                                            // Momentum (mass * vel) is conserved!
+                                            (kmat.vel * body.mass
+                                                + other_kmat.vel * other_body.mass)
                                                 / (body.mass + other_body.mass),
-                                        // Momentum (mass * vel) is conserved!
-                                        (kmat.vel * body.mass + other_kmat.vel * other_body.mass)
-                                            / (body.mass + other_body.mass),
-                                    ),
+                                        )
+                                    } else {
+                                        Kinemat::zero() // If either is immovable no moving it
+                                    },
                                 );
                                 new_orbiters.push((combined, (id, other_id)));
                             } else {

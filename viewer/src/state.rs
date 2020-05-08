@@ -164,36 +164,33 @@ impl EventHandler for State {
                 };
 
                 let pan_speed = PAN_SPEED * self.distance_scale;
-                if keyboard::is_key_pressed(ctx, KeyCode::Space)
-                    && !self.prev_keys.contains(&KeyCode::Space)
-                {
-                    if let Some(_) = self.focused_body {
-                        self.focused_body = None
-                    } else {
-                        self.focus_offset = Point2D::zero();
-                    }
-                } else {
-                    // Check for panning
-                    if keyboard::is_key_pressed(ctx, KeyCode::W) {
-                        self.focus_offset.y -= pan_speed;
-                    }
-                    if keyboard::is_key_pressed(ctx, KeyCode::S) {
-                        self.focus_offset.y += pan_speed;
-                    }
-                    if keyboard::is_key_pressed(ctx, KeyCode::A) {
-                        self.focus_offset.x -= pan_speed;
-                    }
-                    if keyboard::is_key_pressed(ctx, KeyCode::D) {
-                        self.focus_offset.x += pan_speed;
-                    }
+                // Check for panning
+                if keyboard::is_key_pressed(ctx, KeyCode::W) {
+                    self.focus_offset.y -= pan_speed;
+                }
+                if keyboard::is_key_pressed(ctx, KeyCode::S) {
+                    self.focus_offset.y += pan_speed;
+                }
+                if keyboard::is_key_pressed(ctx, KeyCode::A) {
+                    self.focus_offset.x -= pan_speed;
+                }
+                if keyboard::is_key_pressed(ctx, KeyCode::D) {
+                    self.focus_offset.x += pan_speed;
                 }
 
-                // Left/right arrows
                 if let Some(id) = self.focused_body {
                     // Press Space to exit focusing the planet
-                    if keyboard::is_key_pressed(ctx, KeyCode::Space) {
-                        self.focus_offset = orbiters.get(&id).unwrap().1.pos;
-                        self.focused_body = None;
+                    if keyboard::is_key_pressed(ctx, KeyCode::Space)
+                        && !self.prev_keys.contains(&KeyCode::Space)
+                    {
+                        if self.focus_offset.x == 0.0 && self.focus_offset.y == 0.0 {
+                            // If we're already at the center of the body, stop focusing
+                            self.focus_offset = orbiters.get(&id).unwrap().1.pos;
+                            self.focused_body = None;
+                        } else {
+                            // Reset to the center of the body
+                            self.focus_offset = Point2D::zero();
+                        }
                     } else {
                         // We're not trying to exit
                         if keyboard::is_key_pressed(ctx, KeyCode::Right)
@@ -202,7 +199,7 @@ impl EventHandler for State {
                             self.focus_offset = Point2D::zero();
                             let maybe_tup = orbiters.range(id + 1..).next();
                             if let Some(tup) = maybe_tup {
-                                self.focused_body = Some(*tup.0) // Move it there!
+                                self.focused_body = Some(*tup.0); // Move it there!
                             } else {
                                 // Cycle back to the beginning
                                 let id_maybe = orbiters.keys().next();
@@ -210,7 +207,7 @@ impl EventHandler for State {
                                     self.focused_body = Some(*first_valid_id);
                                 } else {
                                     //there's no bodies somehow. Uh-oh...
-                                    self.focused_body = None
+                                    self.focused_body = None;
                                 }
                             }
                         }
@@ -220,7 +217,7 @@ impl EventHandler for State {
                             self.focus_offset = Point2D::zero();
                             let maybe_tup = orbiters.range(..id).next_back();
                             if let Some(tup) = maybe_tup {
-                                self.focused_body = Some(*tup.0) // Move it there!
+                                self.focused_body = Some(*tup.0); // Move it there!
                             } else {
                                 // Cycle back to the end
                                 let id_maybe = orbiters.keys().last();
@@ -234,6 +231,7 @@ impl EventHandler for State {
                         }
                     }
                 } else {
+                    // Use arrow keys to jump into viewing a planet
                     if keyboard::is_key_pressed(ctx, KeyCode::Left)
                         || keyboard::is_key_pressed(ctx, KeyCode::Right)
                     {
@@ -246,6 +244,7 @@ impl EventHandler for State {
                         };
                         if let Some(first_valid_id) = id_maybe {
                             self.focused_body = Some(first_valid_id);
+                            self.focus_offset = Point2D::zero();
                         } else {
                             // Else, there's no bodies somehow. Uh-oh...
                             self.popuped_orbiter_id = None;
