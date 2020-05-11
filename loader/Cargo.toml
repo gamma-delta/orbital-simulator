@@ -8,9 +8,10 @@ edition = "2018"
 
 [dependencies]
 simulator = { path = "../simulator" }
-euclid = "0.20.10"
+euclid = { version = "0.20.10", features = ["serde"] }
 json5 = "0.2.7"
 serde = { version = "1.0.106", features = ["derive"] }
+typetag = "0.1.4" # Let me serde trait objects
 lazy_static = "1.2.0"
 rand = { version = "0.7.3", features = [ "small_rng" ] } # For building random moons
 rand_distr = "0.2.2" # Assists rand, for the distribution of mass in asteroids
