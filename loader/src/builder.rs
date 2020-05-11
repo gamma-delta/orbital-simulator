@@ -126,8 +126,9 @@ impl SolarSystemBuilder {
                     let pos_y = theta.sin() * orbit;
                     let vel = (simulator::GRAV_CONSTANT * total_mass * orbit.recip()).sqrt()
                         * if clockwise { -1.0 } else { 1.0 };
-                    let vel_x = theta.cos() * vel;
-                    let vel_y = theta.sin() * vel;
+                    // Swap sin and cos cause it ought to be perpendicular
+                    let vel_x = theta.sin() * vel;
+                    let vel_y = theta.cos() * vel;
 
                     Orbiter(
                         Body {
@@ -138,7 +139,10 @@ impl SolarSystemBuilder {
                             name: format!("{}-{}", system_name, num),
                             immovable: false,
                         },
-                        Kinemat::new(Point2D::new(pos_x, pos_y), Vector2D::new(vel_x, vel_y)),
+                        Kinemat::new(
+                            Point2D::new(pos_x, pos_y) + parent_pos.to_vector(),
+                            Vector2D::new(vel_x, vel_y) + parent_vel,
+                        ),
                     )
                 }));
             }
@@ -214,8 +218,9 @@ impl SolarSystemBuilder {
                     let pos_y = theta.sin() * orbit;
                     let vel = (simulator::GRAV_CONSTANT * system_mass * orbit.recip()).sqrt()
                         * if clockwise { -1.0 } else { 1.0 };
-                    let vel_x = theta.cos() * vel;
-                    let vel_y = theta.sin() * vel;
+                    // Swap sin and cos cause it should be perpendicular
+                    let vel_x = theta.sin() * vel;
+                    let vel_y = theta.cos() * vel;
                     asteroids.push(Orbiter(
                         Body {
                             mass,

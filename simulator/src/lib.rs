@@ -117,19 +117,20 @@ impl SolarSystem {
                                         ),
                                         immovable: body.immovable || other_body.immovable, // If either of them doesn't move, neither does this one
                                     },
-                                    if !body.immovable && other_body.immovable {
-                                        Kinemat::new(
-                                            kmat.pos
-                                                + Vector2D::new(dx, dy) * (other_body.mass)
-                                                    / (body.mass + other_body.mass),
-                                            // Momentum (mass * vel) is conserved!
+                                    Kinemat::new(
+                                        // Pos at center of mass
+                                        (kmat.pos * body.mass
+                                            + (other_kmat.pos * other_body.mass).to_vector())
+                                            / (body.mass + other_body.mass),
+                                        // Momentum (mass * vel) is conserved!
+                                        if !body.immovable && !other_body.immovable {
                                             (kmat.vel * body.mass
                                                 + other_kmat.vel * other_body.mass)
-                                                / (body.mass + other_body.mass),
-                                        )
-                                    } else {
-                                        Kinemat::zero() // If either is immovable no moving it
-                                    },
+                                                / (body.mass + other_body.mass)
+                                        } else {
+                                            Vector2D::zero()
+                                        },
+                                    ),
                                 );
                                 new_orbiters.push((combined, (id, other_id)));
                             } else {

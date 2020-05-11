@@ -71,7 +71,16 @@
                 kinemat: {
                     pos: [7.786e11, 0],
                     vel: [0, -13070]
-                }
+                },
+                children: [{
+                    // MooooooOOooon builder... Whiter than snow... I'm building you in style...
+                    // We're only gonna be building the galilean moons for speed's sake
+                    count: 4,
+                    min_mass: 4.8e22,
+                    max_mass: 1.48e23,
+                    min_orbit: 4.218e8,
+                    max_orbit: 1.8224e9,
+                }]
             },
             {
                 body: "saturn",
